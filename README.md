@@ -248,6 +248,13 @@ Shows all detected flag-sharing attempts with:
 - [x] Discord webhook notifications
 - [ ] Support docker compose file for challenge creation
 
+## Credits
+
+This plugin is based on and continues the work of **[CTFd-Docker-Plugin](https://github.com/phannhat17/CTFd-Docker-Plugin)** by [phannhat17](https://github.com/phannhat17).
+
+- **Upstream repository:** [https://github.com/phannhat17/CTFd-Docker-Plugin](https://github.com/phannhat17/CTFd-Docker-Plugin)
+- **Releases:** [https://github.com/phannhat17/CTFd-Docker-Plugin/releases](https://github.com/phannhat17/CTFd-Docker-Plugin/releases)
+
 ## License
 
 See LICENSE file.
