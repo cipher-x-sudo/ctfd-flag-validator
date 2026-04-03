@@ -1,0 +1,483 @@
+{% extends "container_base.html" %}
+
+{% block menu %}
+{% include "config/container_menu.html" %}
+{% endblock %}
+
+{% block panel %}
+
+<div class="alert alert-info border-0 shadow-sm mb-4">
+	<div class="d-flex justify-content-between align-items-center">
+		<span><i class="fas fa-info-circle mr-2"></i> Auto refreshes every 15 seconds.</span>
+		<button class="btn btn-sm btn-link text-info p-0" type="button" data-toggle="collapse"
+			data-target="#dashboardHelp">
+			<i class="far fa-question-circle mr-1"></i> Help
+		</button>
+	</div>
+	<div class="collapse mt-2" id="dashboardHelp">
+		<div class="card card-body bg-light border-0 small">
+			<div class="row">
+				<div class="col-md-6 border-right">
+					<h6 class="font-weight-bold text-uppercase text-muted mb-2">Statuses</h6>
+					<ul class="list-unstyled mb-0">
+						<li class="mb-1"><span class="badge badge-success">Running</span> Container is active and
+							accessible.
+						</li>
+						<li class="mb-1"><span class="badge badge-warning">Provisioning</span> Container is starting up.
+						</li>
+						<li class="mb-1"><span class="badge badge-secondary">Stopped</span> Container expired or stopped
+							manually.</li>
+						<li class="mb-1"><span class="badge badge-danger">Error</span> Startup failed or runtime error.
+						</li>
+						<li><span class="badge badge-info">Solved</span> User submitted flag (auto-stopped).</li>
+					</ul>
+				</div>
+				<div class="col-md-6 pl-md-4">
+					<h6 class="font-weight-bold text-uppercase text-muted mb-2">Actions</h6>
+					<dl class="mb-0">
+						<dt class="text-danger"><i class="fas fa-trash-alt mr-1"></i> Delete</dt>
+						<dd>Terminates the container process and <strong>permanently deletes</strong> the database
+							entry. Cannot be undone.</dd>
+						<dt class="text-danger"><i class="fas fa-power-off mr-1"></i> Emergency Stop</dt>
+						<dd>Immediately stops <strong>ALL</strong> running containers. Database entries are
+							<strong>preserved</strong> (status changes to 'Stopped').</dd>
+					</dl>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<style>
+	.badge-pulsing i {
+		animation: pulsing 1.5s infinite;
+	}
+
+	@keyframes pulsing {
+		0% {
+			transform: scale(1);
+			opacity: 1;
+		}
+
+		50% {
+			transform: scale(1.2);
+			opacity: 0.6;
+		}
+
+		100% {
+			transform: scale(1);
+			opacity: 1;
+		}
+	}
+
+	.port-tag {
+		background: #f8f9fa;
+		color: #6c757d;
+		border: 1px solid #dee2e6;
+		border-radius: 4px;
+		padding: 2px 6px;
+		font-family: monospace;
+		font-size: 0.85rem;
+		margin: 2px;
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.filter-card {
+		background: #fff;
+		border: 1px solid #dfdfdf;
+		border-radius: 4px;
+		padding: 15px;
+	}
+
+	#challenge-dropdown .dropdown-toggle {
+		text-overflow: ellipsis;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+</style>
+
+<div class="filter-card mb-4">
+	<form method="GET" class="form-row align-items-end">
+		<div class="col-lg-3 col-md-4 mb-3 mb-md-0">
+			<label class="small text-muted font-weight-bold">SEARCH</label>
+			<input type="text" name="q" class="form-control" placeholder="Search Team/User" value="{{ filters.q }}">
+		</div>
+
+		<div class="col-lg-3 col-md-4 mb-3 mb-md-0">
+			<label class="small text-muted font-weight-bold">CHALLENGE</label>
+			<div class="dropdown" id="challenge-dropdown">
+				<button
+					class="btn btn-outline-secondary dropdown-toggle w-100 text-left d-flex justify-content-between align-items-center"
+					type="button" id="challengeDropdownBtn" data-toggle="dropdown" aria-haspopup="true"
+					aria-expanded="false" style="background: white; border-color: #ced4da;">
+					<span id="selected-challenge-text">All Challenges</span>
+				</button>
+				<div class="dropdown-menu w-100 p-0 shadow-sm" aria-labelledby="challengeDropdownBtn"
+					style="max-height: 300px; overflow-y: auto;">
+					<div class="p-2 sticky-top bg-white border-bottom">
+						<input type="text" class="form-control form-control-sm" id="challenge-search-input"
+							placeholder="Type to filter..." autocomplete="off">
+					</div>
+					<div id="challenge-list-container">
+						<a class="dropdown-item challenge-item" href="#" data-value="">All Challenges</a>
+						{% for c in all_challenges %}
+						<a class="dropdown-item challenge-item" href="#" data-value="{{ c.id }}">{{ c.name }}</a>
+						{% endfor %}
+					</div>
+				</div>
+				<input type="hidden" name="challenge_id" id="challenge_id_hidden"
+					value="{{ filters.challenge_id if filters.challenge_id else '' }}">
+			</div>
+		</div>
+
+		<div class="col-lg-2 col-md-4 mb-3 mb-md-0">
+			<label class="small text-muted font-weight-bold">STATUS</label>
+			<select name="status" class="form-control custom-select">
+				<option value="" {{ 'selected' if filters.status=='' }}>All Statuses</option>
+				<option value="running" {{ 'selected' if filters.status=='running' }}>Running</option>
+				<option value="provisioning" {{ 'selected' if filters.status=='provisioning' }}>Provisioning</option>
+				<option value="solved" {{ 'selected' if filters.status=='solved' }}>Solved</option>
+				<option value="error" {{ 'selected' if filters.status=='error' }}>Error</option>
+				<option value="stopped" {{ 'selected' if filters.status=='stopped' }}>Stopped</option>
+			</select>
+		</div>
+
+		<div class="col-auto mb-3 mb-md-0">
+			<button type="submit" class="btn btn-primary px-4">
+				<i class="fas fa-filter mr-1"></i> Filter
+			</button>
+			<a href="{{ url_for('containers_admin.dashboard') }}" class="btn btn-link text-muted ml-2">
+				Clear
+			</a>
+		</div>
+	</form>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+	<div>
+		<h4 class="mb-1">Container Instances</h4>
+		<p class="text-muted mb-0 small">Showing {{ instances.total }} results</p>
+	</div>
+	<div class="btn-group">
+		<button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+			<i class="fas fa-sync-alt"></i> Refresh
+		</button>
+		<button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkDeleteContainers()">
+			<i class="fas fa-trash-alt"></i> Delete Selected
+		</button>
+		<button type="button" class="btn btn-danger btn-sm" onclick="emergencyStop()">
+			<i class="fas fa-power-off"></i> Emergency Stop
+		</button>
+		<!-- <div class="btn-group">
+			<button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown">
+				More Actions
+			</button>
+			<div class="dropdown-menu dropdown-menu-right">
+				<a class="dropdown-item text-warning" href="#" onclick="cleanupSolved()">
+					<i class="fas fa-broom mr-2"></i> Cleanup Solved
+				</a>
+				<div class="dropdown-divider"></div>
+				<a class="dropdown-item text-danger" href="#" onclick="emergencyStop()">
+					<i class="fas fa-power-off mr-2"></i> Emergency Stop
+				</a>
+			</div>
+		</div> -->
+	</div>
+</div>
+
+<div class="card">
+	<table class="table table-striped mb-0">
+		<thead>
+			<tr>
+				<th width="40" class="text-center pl-4">
+					<input type="checkbox" id="select-all" style="cursor: pointer;">
+				</th>
+				<th>Challenge</th>
+				<th>Container ID</th>
+				<th>User / Team</th>
+				<th class="text-center">Status</th>
+				<th>Time</th>
+				<th class="text-center">Ports</th>
+				<th width="60" class="text-center pr-4"></th>
+			</tr>
+		</thead>
+		<tbody>
+			{% if instances and instances.items|length > 0 %}
+			{% for instance in instances.items %}
+			<tr>
+				<td class="text-center pl-4">
+					<input type="checkbox" class="container-checkbox" value="{{ instance.id }}"
+						style="cursor: pointer;">
+				</td>
+				<td>
+					<a href="{{ url_for('admin.challenges_detail', challenge_id=instance.challenge_id) }}">
+						{{ instance.challenge.name }}
+					</a>
+				</td>
+				<td>
+					<div class="badge badge-light border">
+						<code>{{ instance.container_id[:10] if instance.container_id else 'N/A' }}</code>
+					</div>
+				</td>
+				<td>
+					{% if is_teams_mode %}
+					{% set team = instance.account_id | get_team %}
+					{% if team %}
+					<a href="{{ url_for('admin.teams_detail', team_id=team.id) }}">
+						{{ team.name }}
+					</a>
+					{% else %}
+					<span class="text-muted small">Team #{{ instance.account_id }}</span>
+					{% endif %}
+					{% else %}
+					{% set user = instance.account_id | get_user %}
+					{% if user %}
+					<a href="{{ url_for('admin.users_detail', user_id=user.id) }}">
+						{{ user.name }}
+					</a>
+					{% else %}
+					<span class="text-muted small">User #{{ instance.account_id }}</span>
+					{% endif %}
+					{% endif %}
+				</td>
+				<td class="text-center">
+					{% set badge_color = 'success' if instance.status == 'running' else 'warning' if instance.status ==
+					'provisioning' else 'danger' if instance.status == 'error' else 'info' if instance.status ==
+					'solved' else 'secondary' %}
+					{% set pulsing = 'badge-pulsing' if instance.status == 'provisioning' else '' %}
+					<span class="badge badge-{{ badge_color }} {{ pulsing }}">
+						<!-- {% if instance.status == 'running' %}
+						<i class="fas fa-circle mr-1" style="font-size: 0.5rem; vertical-align: middle;"></i>
+						{% elif instance.status == 'provisioning' %}
+						<i class="fas fa-spinner fa-spin mr-1"></i>
+						{% endif %} -->
+						{{ instance.status | capitalize }}
+					</span>
+				</td>
+				<td>
+					<div class="d-flex flex-column text-muted small">
+						<span><i class="far fa-clock mr-1 opacity-50"></i> <span class="timestamp"
+								data-ts="{{ instance.created_at.timestamp() }}">-</span></span>
+						<span class="text-muted mt-1"><i class="fas fa-hourglass-end mr-1 opacity-50"></i> <span
+								class="timestamp" data-ts="{{ instance.expires_at.timestamp() }}">-</span></span>
+					</div>
+				</td>
+				<td class="text-center">
+					{% if instance.connection_ports and instance.connection_ports|length > 0 %}
+					<div class="d-flex flex-wrap justify-content-center">
+						{% for int_p, ext_p in instance.connection_ports.items() %}
+						<div class="port-tag">
+							{{ int_p }} <i class="fas fa-arrow-right text-muted" style="font-size: 0.7em;"></i>
+							<strong>{{ ext_p }}</strong>
+						</div>
+						{% endfor %}
+					</div>
+					{% else %}
+					<span class="text-muted small">N/A</span>
+					{% endif %}
+				</td>
+				<td class="text-center pr-4">
+					{% if instance.status == 'running' or instance.status == 'provisioning' %}
+					<button class="btn btn-outline-danger btn-sm" onclick="deleteInstance({{ instance.id }})"
+						title="Terminate & Delete">
+						<i class="fas fa-trash-alt"></i>
+					</button>
+					{% else %}
+					<button class="btn btn-outline-secondary btn-sm" disabled title="Already stopped/solved">
+						<i class="fas fa-ban"></i>
+					</button>
+					{% endif %}
+				</td>
+			</tr>
+			{% endfor %}
+			{% else %}
+			<tr>
+				<td colspan="8" class="text-center py-5">
+					<div class="my-3 text-muted opacity-50">
+						<i class="fas fa-database fa-3x mb-2"></i>
+					</div>
+					<h5 class="text-muted font-weight-normal">No instances found</h5>
+				</td>
+			</tr>
+			{% endif %}
+		</tbody>
+	</table>
+</div>
+
+{% if instances.pages > 1 %}
+<div class="mt-4">
+	<ul class="pagination justify-content-center">
+		{% if instances.has_prev %}
+		<li class="page-item">
+			<a class="page-link shadow-sm"
+				href="{{ url_for('containers_admin.dashboard', page=instances.prev_num, **filters) }}">
+				<i class="fas fa-chevron-left"></i>
+			</a>
+		</li>
+		{% endif %}
+
+		{% for page_num in instances.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+		{% if page_num %}
+		<li class="page-item {{ 'active' if page_num == instances.page }}">
+			<a class="page-link shadow-sm"
+				href="{{ url_for('containers_admin.dashboard', page=page_num, **filters) }}">{{ page_num }}</a>
+		</li>
+		{% else %}
+		<li class="page-item disabled"><span class="page-link">...</span></li>
+		{% endif %}
+		{% endfor %}
+
+		{% if instances.has_next %}
+		<li class="page-item">
+			<a class="page-link shadow-sm"
+				href="{{ url_for('containers_admin.dashboard', page=instances.next_num, **filters) }}">
+				<i class="fas fa-chevron-right"></i>
+			</a>
+		</li>
+		{% endif %}
+	</ul>
+</div>
+{% endif %}
+
+{% include "config/container_status.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+	document.addEventListener("DOMContentLoaded", function () {
+		// Searchable Dropdown Logic
+		const searchInput = document.getElementById('challenge-search-input');
+		const challengeList = document.getElementById('challenge-list-container');
+		const hiddenInput = document.getElementById('challenge_id_hidden');
+		const selectedText = document.getElementById('selected-challenge-text');
+		const items = challengeList.getElementsByClassName('challenge-item');
+
+		// Initial label set
+		const initialValue = hiddenInput.value;
+		if (initialValue) {
+			for (let item of items) {
+				if (item.dataset.value === initialValue) {
+					selectedText.innerText = item.innerText;
+					break;
+				}
+			}
+		}
+
+		searchInput.addEventListener('keyup', function () {
+			const filter = searchInput.value.toLowerCase();
+			for (let item of items) {
+				const text = item.innerText.toLowerCase();
+				if (text.includes(filter)) {
+					item.style.display = "";
+				} else {
+					item.style.display = "none";
+				}
+			}
+		});
+
+		// Handle Selection
+		challengeList.addEventListener('click', function (e) {
+			if (e.target.classList.contains('challenge-item')) {
+				e.preventDefault();
+				const value = e.target.dataset.value;
+				const text = e.target.innerText;
+
+				hiddenInput.value = value;
+				selectedText.innerText = text;
+			}
+		});
+
+		// Prevent dropdown close when clicking input
+		searchInput.addEventListener('click', function (e) {
+			e.stopPropagation();
+		});
+
+		// Timestamp Formatting
+		function formatTimestamps() {
+			document.querySelectorAll(".timestamp").forEach(element => {
+				let ts = element.getAttribute("data-ts");
+				if (!ts || ts === "None") return;
+
+				let date = new Date(ts * 1000);
+				let hh = String(date.getHours()).padStart(2, '0');
+				let mm = String(date.getMinutes()).padStart(2, '0');
+				let d = String(date.getDate()).padStart(2, '0');
+				let m = String(date.getMonth() + 1).padStart(2, '0');
+
+				element.innerText = `${hh}:${mm} ${d}/${m}`;
+			});
+		}
+		formatTimestamps();
+
+		// Select All Logic
+		const selectAll = document.getElementById('select-all');
+		const checkboxes = document.querySelectorAll('.container-checkbox');
+		if (selectAll) {
+			selectAll.addEventListener('change', function () {
+				checkboxes.forEach(cb => cb.checked = selectAll.checked);
+			});
+		}
+	});
+
+	// Auto Reload
+	setInterval(function () {
+		const activeEl = document.activeElement;
+		const inputs = ['q', 'challenge-search-input'];
+		// Check if user is typing in any input
+		if (activeEl.tagName === 'INPUT' && (activeEl.name === 'q' || activeEl.id === 'challenge-search-input')) {
+			return;
+		}
+		location.reload();
+	}, 15000);
+
+	function deleteInstance(instanceId) {
+		if (!confirm('Are you sure you want to terminate and delete this container?')) return;
+		fetch('{{ url_for("containers_admin.api_instances") }}/' + instanceId, {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json', 'CSRF-Token': init.csrfNonce }
+		}).then(r => r.json()).then(data => {
+			if (data.success) location.reload();
+			else alert('Error: ' + data.error);
+		});
+	}
+
+	function bulkDeleteContainers() {
+		let selected = Array.from(document.querySelectorAll(".container-checkbox:checked")).map(cb => cb.value);
+		if (selected.length === 0) return alert("Select at least one container.");
+		if (!confirm(`Delete ${selected.length} items?`)) return;
+
+		fetch('{{ url_for("containers_admin.api_bulk_delete") }}', {
+			method: "POST",
+			headers: { "Content-Type": "application/json", "CSRF-Token": init.csrfNonce },
+			body: JSON.stringify({ instance_ids: selected }),
+		}).then(r => r.json()).then(data => {
+			if (data.success) location.reload();
+			else alert("Error: " + data.error);
+		});
+	}
+
+	function emergencyStop() {
+		if (!confirm('EMERGENCY: Stop ALL containers?')) return;
+		fetch('{{ url_for("containers_admin.api_emergency_stop") }}', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'CSRF-Token': init.csrfNonce }
+		}).then(r => r.json()).then(data => {
+			if (data.success) { alert('Stopped ' + data.stopped); location.reload(); }
+			else alert('Error: ' + data.error);
+		});
+	}
+
+	function cleanupSolved() {
+		if (!confirm('Cleanup solved containers?')) return;
+		fetch('{{ url_for("containers_admin.api_cleanup_solved") }}', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'CSRF-Token': init.csrfNonce }
+		}).then(r => r.json()).then(data => {
+			if (data.success) { alert('Cleaned ' + data.deleted); location.reload(); }
+			else alert('Error: ' + data.error);
+		});
+	}
+</script>
+{% endblock %}

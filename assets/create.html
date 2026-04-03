@@ -1,0 +1,168 @@
+{% extends "admin/challenges/create.html" %}
+
+{% block header %}
+<div class="alert alert-secondary" role="alert">
+	Container challenges dynamically spin up a Docker container for each team to run the challenge on.
+</div>
+{% endblock %}
+
+{% block value %}
+<div class="form-group">
+	<label for="scoring_type">Scoring Type<br>
+		<small class="form-text text-muted">
+			Choose between static points or dynamic decay scoring
+		</small>
+	</label>
+	<select class="form-control" id="scoring_type" name="scoring_type">
+		<option value="standard" selected>Standard (Fixed Points)</option>
+		<option value="dynamic">Dynamic (Decay-based)</option>
+	</select>
+</div>
+
+<!-- Standard Scoring (shown by default) -->
+<div id="standard-scoring" class="scoring-section">
+	<div class="form-group">
+		<label for="value">Points<br>
+			<small class="form-text text-muted">
+				Fixed number of points for this challenge
+			</small>
+		</label>
+		<input type="number" class="form-control" name="value" id="standard_value" placeholder="Enter value" required>
+	</div>
+</div>
+
+<!-- Dynamic Scoring (hidden by default) -->
+<div id="dynamic-scoring" class="scoring-section" style="display: none;">
+	<div class="form-group">
+		<label for="initial">Initial Value<br>
+			<small class="form-text text-muted">
+				This is how many points the challenge is worth initially
+			</small>
+		</label>
+		<input type="number" class="form-control" name="initial" id="dynamic_initial" placeholder="Enter initial value">
+	</div>
+
+	<div class="form-group">
+		<label for="value">Decay Function<br>
+			<small class="form-text text-muted">
+				<span>How the dynamic value will be calculated based on the Decay value</span>
+				<ul>
+					<li>Linear: Calculated as <code>Initial - (Decay * SolveCount)</code></li>
+					<li>Logarithmic: Calculated as
+						<code>(((Minimum - Initial) / (Decay^2)) * (SolveCount^2)) + Initial</code></li>
+				</ul>
+			</small>
+		</label>
+		<select class="form-control" name="decay_function" id="decay_function">
+			<option value="linear" selected>Linear</option>
+			<option value="logarithmic">Logarithmic</option>
+		</select>
+	</div>
+
+	<div class="form-group">
+		<label for="value">Decay<br>
+			<small class="form-text text-muted">
+				<span>The decay value is used differently depending on the above Decay Function</span>
+				<ul>
+					<li>Linear: The amount of points deducted per solve. Equal deduction per solve.</li>
+					<li>Logarithmic: The amount of solves before the challenge reaches its minimum value. Earlier solves
+						will lose less
+						points. Later solves will lose more points</li>
+				</ul>
+			</small>
+		</label>
+		<input type="number" class="form-control" name="decay" id="dynamic_decay" placeholder="Enter decay limit">
+	</div>
+
+	<div class="form-group">
+		<label for="minimum">Minimum Value<br>
+			<small class="form-text text-muted">
+				This is the lowest that the challenge can be worth
+			</small>
+		</label>
+		<input type="number" class="form-control" name="minimum" id="dynamic_minimum" placeholder="Enter minimum value">
+	</div>
+</div>
+
+<div class="form-group">
+	<label>
+		Image<br>
+		<small class="form-text text-muted">
+			Name of the Docker image to spin up
+		</small>
+	</label>
+	<select type="text" class="form-control" name="image" placeholder="Enter image" id="container-image"
+		title="Name of the Docker image to spin up" required disabled>
+		<option value="" id="container-image-default" disabled selected>Loading...</option>
+	</select>
+</div>
+
+<div class="form-group">
+	<label>
+		Connect type<br>
+		<small class="form-text text-muted">
+			Connect via web or tcp (Netcat)
+		</small>
+	</label>
+	<select class="form-control" name="connection_type">
+		<option value="http">Web (HTTP)</option>
+		<option value="tcp">TCP (Netcat)</option>
+	</select>
+</div>
+
+<div class="form-group">
+	<label>
+		Internal Port(s)<br>
+		<small class="form-text text-muted">
+			Internal container ports to expose (comma separated, e.g. "80,22")
+		</small>
+	</label>
+	<input type="text" class="form-control" name="internal_ports" placeholder="80,22"
+		oninput="document.getElementById('internal_port_hidden').value = this.value.split(',')[0].trim() || '22'"
+		required>
+	<input type="hidden" name="internal_port" id="internal_port_hidden" value="22">
+</div>
+
+<div class="form-group">
+	<label>
+		Docker Command (Optional)<br>
+		<small class="form-text text-muted">
+			Custom command to run in container (leave empty to use image default)
+		</small>
+	</label>
+	<input type="text" class="form-control" name="command" placeholder="/bin/bash -c 'your command'">
+</div>
+
+<!-- Flag Pattern Configuration -->
+<div class="form-group">
+	<label for="flag_pattern">Flag Pattern<br>
+		<small class="form-text text-muted">
+			<strong>Easy flag configuration! Just enter your flag pattern:</strong>
+			<ul>
+				<li><strong>Static flag:</strong> <code>CTF{this_is_the_flag}</code> → Same flag for everyone</li>
+				<li><strong>Random flag:</strong> <code>CTF{this_is_the_flag_&lt;ran_8&gt;}</code> → Unique flag per
+					team/user
+					<ul>
+						<li><code>&lt;ran_8&gt;</code> will be replaced with 8 random characters</li>
+						<li><code>&lt;ran_16&gt;</code> for 16 characters, etc.</li>
+					</ul>
+				</li>
+			</ul>
+			<em>Note: You don't need to manually add flags in the flag popup!</em>
+		</small>
+	</label>
+	<input type="text" class="form-control" id="flag_pattern" placeholder="CTF{example_flag}" value="CTF{}" />
+	<small id="flag_pattern_preview" class="form-text text-info"></small>
+</div>
+
+<!-- Hidden fields (auto-filled by JavaScript) -->
+<input type="hidden" id="flag_mode" name="flag_mode" value="static" />
+<input type="hidden" id="flag_prefix" name="flag_prefix" value="CTF{" />
+<input type="hidden" id="flag_suffix" name="flag_suffix" value="}" />
+<input type="hidden" id="random_flag_length" name="random_flag_length" value="0" />
+
+{% endblock %}
+
+{% block type %}
+<input type="hidden" value="container" name="type" id="chaltype">
+{% endblock %}

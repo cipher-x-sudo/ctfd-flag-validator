@@ -1,0 +1,815 @@
+{% extends "container_base.html" %}
+
+{% block menu %}
+{% include "config/container_menu.html" %}
+{% endblock %}
+
+{% block panel %}
+<div class="alert alert-info border-0 shadow-sm mb-3">
+	<div class="d-flex justify-content-between align-items-center">
+		<span><i class="fas fa-cog mr-2"></i> <strong>Global Settings:</strong> Applies to all container
+			challenges.</span>
+		<button class="btn btn-sm btn-link text-info p-0" type="button" data-toggle="collapse"
+			data-target="#settingsHelp">
+			<i class="far fa-question-circle mr-1"></i> Legend & Help
+		</button>
+	</div>
+	<div class="collapse mt-2" id="settingsHelp">
+		<div class="card card-body bg-light border-0 small">
+			<div class="row">
+				<div class="col-md-6 border-right">
+					<h6 class="font-weight-bold text-uppercase text-muted mb-2">Docker Configuration</h6>
+					<ul class="list-unstyled mb-0">
+						<li class="mb-2"><strong>Docker Type:</strong>
+							<ul>
+								<li><code>Local</code>: Uses local socket <code>/var/run/docker.sock</code>.</li>
+								<li><code>SSH</code>: Remote Docker over SSH (requires Key/Agent).</li>
+							</ul>
+						</li>
+						<li class="mb-2"><strong>Routing Modes:</strong>
+							<ul>
+								<li><code>Host:Port</code>: Uses <strong>Connection Hostname</strong> + allocated port
+									(e.g. <code>challenges.ctf.com:30001</code>). Used for TCP/SSH.</li>
+								<li><code>Subdomain</code>: Uses <strong>Base Domain</strong> (e.g.
+									<code>uuid.challenges.ctf.com</code>). Used for Web/HTTP.
+								</li>
+							</ul>
+						</li>
+						<li class="mb-2"><strong>Connection Hostname:</strong>
+							<br>The public domain/IP for Host:Port challenges.
+							<br><span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Security:</span>
+							Do
+							not use the same domain as CTFd to prevent cookie theft.
+						</li>
+					</ul>
+				</div>
+				<div class="col-md-6 pl-md-4">
+					<h6 class="font-weight-bold text-uppercase text-muted mb-2">Limits & Resources</h6>
+					<dl class="mb-0">
+						<dt>Expiration</dt>
+						<dd>Minutes before container is killed. 0 = Infinite.</dd>
+						<dt>Max Renewals</dt>
+						<dd>How many times user can extend time (+5 mins each).</dd>
+						<dt>Concurrent Limit</dt>
+						<dd>Max containers per User/Team at once.</dd>
+						<dt>CPU / Memory</dt>
+						<dd>Hard limits applied to every container (e.g. 0.5 CPU, 512MB RAM).</dd>
+					</dl>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<form id="settings-form">
+	<div class="card">
+		<div class="card-header">
+			<h5>Docker Configuration</h5>
+		</div>
+		<div class="card-body">
+			<div class="form-group">
+				<label>Docker Connection Type</label>
+				<div>
+					<div class="form-check form-check-inline">
+						<input class="form-check-input" type="radio" name="docker_type" id="docker_type_local"
+							value="local" {{ 'checked' if settings.docker_type=='local' or not settings.docker_type
+							else '' }}>
+						<label class="form-check-label" for="docker_type_local">
+							<i class="fas fa-server"></i> Local Docker
+						</label>
+					</div>
+					<div class="form-check form-check-inline">
+						<input class="form-check-input" type="radio" name="docker_type" id="docker_type_ssh" value="ssh"
+							{{ 'checked' if settings.docker_type=='ssh' else '' }}>
+						<label class="form-check-label" for="docker_type_ssh">
+							<i class="fas fa-network-wired"></i> Remote SSH
+						</label>
+					</div>
+				</div>
+			</div>
+
+			<!-- SSH Configuration -->
+			<div id="ssh-config-section" style="display: none;">
+				<hr>
+				<h6><i class="fas fa-key"></i> SSH Configuration</h6>
+
+				<div class="form-row">
+					<div class="form-group col-md-8">
+						<label for="ssh_hostname">Hostname / IP Address</label>
+						<input class="form-control" type="text" name="ssh_hostname" id="ssh_hostname"
+							placeholder="192.168.1.100 or docker.example.com" value="{{ settings.ssh_hostname }}">
+					</div>
+					<div class="form-group col-md-4">
+						<label for="ssh_port">Port</label>
+						<input class="form-control" type="number" name="ssh_port" id="ssh_port" placeholder="22"
+							value="{{ settings.ssh_port or '22' }}">
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label for="ssh_user">SSH User</label>
+					<input class="form-control" type="text" name="ssh_user" id="ssh_user" placeholder="root"
+						value="{{ settings.ssh_user or 'root' }}">
+				</div>
+
+				<div class="form-group">
+					<label for="ssh_key_content">SSH Private Key</label>
+					<textarea class="form-control" name="ssh_key_content" id="ssh_key_content" rows="8"
+						placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n...">{{ settings.ssh_key_content }}</textarea>
+					<small class="form-text text-muted">
+						Paste your SSH private key here (ed25519, RSA, etc.)
+					</small>
+				</div>
+
+				<div class="form-group">
+					<label for="ssh_known_hosts">Known Hosts Entry</label>
+					<textarea class="form-control" name="ssh_known_hosts" id="ssh_known_hosts" rows="3"
+						placeholder="192.168.1.100 ssh-ed25519 AAAA...">{{ settings.ssh_known_hosts }}</textarea>
+					<small class="form-text text-muted">
+						Paste the known_hosts entry for the remote server. Get it with:
+						<code>ssh-keyscan hostname</code>
+					</small>
+				</div>
+			</div>
+
+			<div class="form-group">
+				<label for="docker_hostname">Connection Hostname (for users)</label>
+				<input class="form-control" type="text" name="connection_host" id="docker_hostname"
+					placeholder="example.com or 10.0.1.8" value="{{ settings.docker_hostname }}">
+				<small class="form-text text-muted">
+					Hostname displayed to users in connection strings
+				</small>
+			</div>
+
+			<div class="form-group">
+				<label for="container_expiration">Default Container Timeout (minutes)</label>
+				<input class="form-control" type="number" name="default_timeout" id="container_expiration"
+					placeholder="30" value="{{ settings.container_expiration }}">
+				<small class="form-text text-muted">
+					How long containers run before auto-termination (0 = never)
+				</small>
+			</div>
+
+			<div class="form-group">
+				<label for="max_renewals">Default Max Renewals</label>
+				<input class="form-control" type="number" name="max_renewals" id="max_renewals" placeholder="3"
+					value="{{ settings.max_renewals }}">
+				<small class="form-text text-muted">
+					Maximum number of times users can extend container lifetime
+				</small>
+			</div>
+
+			<div class="form-group">
+				<label for="container_max_concurrent_count">Max Concurrent Containers (per User/Team)</label>
+				<input class="form-control" type="number" name="container_max_concurrent_count"
+					id="container_max_concurrent_count" placeholder="3"
+					value="{{ settings.container_max_concurrent_count }}">
+				<small class="form-text text-muted">
+					Maximum number of containers a user or team can run simultaneously
+				</small>
+			</div>
+
+			<div class="form-group">
+				<label for="container_discord_webhook_url">Discord Webhook URL</label>
+				<input class="form-control" type="text" name="container_discord_webhook_url"
+					id="container_discord_webhook_url" placeholder="https://discord.com/api/webhooks/..."
+					value="{{ settings.container_discord_webhook_url }}">
+				<small class="form-text text-muted">
+					Optional: URL to send notifications for Cheat Alerts and System Errors. Leave empty to disable.
+				</small>
+
+				<div class="mt-2">
+					<button type="button" class="btn btn-outline-success btn-sm" onclick="testWebhook('connection')">
+						<i class="fas fa-plug"></i> Test Connection
+					</button>
+					<button type="button" class="btn btn-outline-danger btn-sm" onclick="testWebhook('demo_cheat')">
+						<i class="fas fa-exclamation-triangle"></i> Demo Cheat
+					</button>
+					<button type="button" class="btn btn-outline-warning btn-sm" onclick="testWebhook('demo_error')">
+						<i class="fas fa-bug"></i> Demo Error
+					</button>
+				</div>
+			</div>
+
+			<div class="form-group">
+				<label for="container_maxmemory">Max Memory per Container</label>
+				<input class="form-control" type="text" name="max_memory" id="container_maxmemory" placeholder="512m"
+					value="{{ settings.container_maxmemory }}">
+				<small class="form-text text-muted">
+					e.g., 512m, 1g
+				</small>
+			</div>
+
+			<div class="form-group">
+				<label for="container_maxcpu">Max CPUs per Container</label>
+				<input class="form-control" type="text" name="max_cpu" id="container_maxcpu" placeholder="1.0"
+					value="{{ settings.container_maxcpu }}">
+				<small class="form-text text-muted">
+					Float value, e.g., 1.5 means 1.5 cores maximum
+				</small>
+			</div>
+		</div>
+	</div>
+
+	<div class="card mt-3">
+		<div class="card-header">
+			<h5><i class="fas fa-tint"></i> First Blood Discord</h5>
+		</div>
+		<div class="card-body">
+			<div class="form-group">
+				<div class="form-check">
+					<input class="form-check-input" type="checkbox" name="container_first_blood_enabled"
+						id="container_first_blood_enabled" value="true"
+						{{ 'checked' if (settings.container_first_blood_enabled or '')|lower == 'true' else '' }}>
+					<label class="form-check-label" for="container_first_blood_enabled">
+						<strong>Enable First Blood announcements</strong>
+					</label>
+				</div>
+				<small class="form-text text-muted">
+					When the first solver completes a container challenge, send a message to Discord.
+				</small>
+			</div>
+			<div class="form-group">
+				<label for="container_first_blood_webhook_url">First Blood Webhook URL (optional)</label>
+				<input class="form-control" type="text" name="container_first_blood_webhook_url"
+					id="container_first_blood_webhook_url" placeholder="https://discord.com/api/webhooks/..."
+					value="{{ settings.container_first_blood_webhook_url }}">
+				<small class="form-text text-muted">
+					Leave empty to use the main Discord Webhook URL above.
+				</small>
+			</div>
+			<div class="form-group">
+				<label for="container_first_blood_message">Message template</label>
+				<textarea class="form-control" name="container_first_blood_message" id="container_first_blood_message"
+					rows="3" placeholder="Use placeholders: {chal_name}, {user_name}, {team_name}">{{ settings.container_first_blood_message }}</textarea>
+				<small class="form-text text-muted">
+					Placeholders: <code>{chal_name}</code>, <code>{user_name}</code>, <code>{team_name}</code>. Discord markdown is supported (e.g. **bold**, __underline__).
+				</small>
+			</div>
+			<div class="form-group">
+				<label for="container_first_blood_poll_period">Poll period (seconds)</label>
+				<input class="form-control" type="number" name="container_first_blood_poll_period"
+					id="container_first_blood_poll_period" min="1" max="300" value="{{ settings.container_first_blood_poll_period }}">
+				<small class="form-text text-muted">
+					How often to check for new first bloods (reference: 5). Only used by the background poller.
+				</small>
+			</div>
+			<div class="form-group">
+				<div class="form-check">
+					<input class="form-check-input" type="checkbox" name="container_announce_all_solves"
+						id="container_announce_all_solves" value="true"
+						{{ 'checked' if (settings.container_announce_all_solves or '')|lower == 'true' else '' }}>
+					<label class="form-check-label" for="container_announce_all_solves">
+						<strong>Announce all solves</strong> (not just first blood)
+					</label>
+				</div>
+			</div>
+			<div class="form-group">
+				<label for="container_solve_webhook_url">Solve webhook URL (for all solves)</label>
+				<input class="form-control" type="text" name="container_solve_webhook_url"
+					id="container_solve_webhook_url" placeholder="https://discord.com/api/webhooks/..."
+					value="{{ settings.container_solve_webhook_url }}">
+				<small class="form-text text-muted">
+					Discord webhook for non–first-blood solves. Leave empty to use main webhook.
+				</small>
+			</div>
+			<div class="form-group">
+				<label for="container_solve_message">Solve message template</label>
+				<textarea class="form-control" name="container_solve_message" id="container_solve_message"
+					rows="2">{{ settings.container_solve_message }}</textarea>
+				<small class="form-text text-muted">
+					Placeholders: <code>{chal_name}</code>, <code>{user_name}</code>, <code>{team_name}</code>, <code>{emojis}</code>.
+				</small>
+			</div>
+			<div class="form-group">
+				<label for="container_category_emojis">Category emojis (JSON)</label>
+				<textarea class="form-control font-monospace" name="container_category_emojis" id="container_category_emojis"
+					rows="4">{{ settings.container_category_emojis }}</textarea>
+				<small class="form-text text-muted">
+					Map category (lowercase) to list of emoji strings, e.g. <code>{"web": [":globe_with_meridians:"], "pwn": [":bug:"]}</code>. One is picked at random for {emojis}.
+				</small>
+			</div>
+			<div class="form-group">
+				<label for="container_announcer_url">Announcer URL (optional)</label>
+				<input class="form-control" type="text" name="container_announcer_url"
+					id="container_announcer_url" placeholder="https://..."
+					value="{{ settings.container_announcer_url }}">
+				<small class="form-text text-muted">
+					If set, POST /api/blood or /api/solves and /api/leaderboard (reference-style).
+				</small>
+			</div>
+			<div class="form-group">
+				<button type="button" class="btn btn-outline-primary btn-sm" onclick="testFirstBlood()">
+					<i class="fas fa-vial"></i> Test First Blood
+				</button>
+				<small class="form-text text-muted">
+					Sends a demo first-blood message to Discord and WhatsApp using the template above. Enable First Blood and set a webhook first.
+				</small>
+			</div>
+		</div>
+	</div>
+
+	<div class="card mt-3">
+		<div class="card-header">
+			<h5><i class="fas fa-shield-alt"></i> Anti-cheat</h5>
+		</div>
+		<div class="card-body">
+			<div class="form-group">
+				<div class="form-check">
+					<input class="form-check-input" type="checkbox" name="container_autoban_enabled"
+						id="container_autoban_enabled" value="true"
+						{{ 'checked' if (settings.container_autoban_enabled or 'true')|lower == 'true' else '' }}>
+					<label class="form-check-label" for="container_autoban_enabled">
+						<strong>Enable autoban on flag reuse</strong>
+					</label>
+				</div>
+				<small class="form-text text-muted">
+					When a flag belonging to another account is submitted, automatically ban both accounts (and in team mode, both teams and all members). If disabled, the cheat is still logged and notifications sent, but no bans are applied.
+				</small>
+			</div>
+		</div>
+	</div>
+
+	<div class="card mt-3">
+		<div class="card-header">
+			<h5>Port Configuration</h5>
+		</div>
+		<div class="card-body">
+			<div class="form-row">
+				<div class="form-group col-md-6">
+					<label for="port_range_start">Port Range Start</label>
+					<input class="form-control" type="number" name="port_range_start" id="port_range_start"
+						placeholder="30000" value="{{ settings.port_range_start }}">
+					<small class="form-text text-muted">
+						Starting port for container allocation
+					</small>
+				</div>
+				<div class="form-group col-md-6">
+					<label for="port_range_end">Port Range End</label>
+					<input class="form-control" type="number" name="port_range_end" id="port_range_end"
+						placeholder="31000" value="{{ settings.port_range_end }}">
+					<small class="form-text text-muted">
+						Ending port for container allocation
+					</small>
+				</div>
+			</div>
+			<div class="form-group">
+				<div class="form-check">
+					<input class="form-check-input" type="checkbox" name="port_allocation_random"
+						id="port_allocation_random" value="true"
+						{{ 'checked' if (settings.port_allocation_random or '')|lower == 'true' else '' }}>
+					<label class="form-check-label" for="port_allocation_random">
+						<strong>Assign ports randomly within range</strong>
+					</label>
+				</div>
+				<small class="form-text text-muted">
+					When enabled, ports are allocated randomly from the available range instead of sequentially.
+				</small>
+			</div>
+			<div class="alert alert-warning">
+				<i class="fas fa-exclamation-triangle"></i> <strong>Note:</strong>
+				Make sure these ports are open in your firewall and not used by other services.
+				Port range: {{ settings.port_range_start }} - {{ settings.port_range_end }}
+				(Total: {{ (settings.port_range_end|int - settings.port_range_start|int) }} ports available)
+			</div>
+		</div>
+	</div>
+
+	<div class="card mt-3">
+		<div class="card-header">
+			<h5><i class="fas fa-globe"></i> Subdomain Routing (Traefik)</h5>
+		</div>
+		<div class="card-body">
+			<div class="alert alert-info">
+				<i class="fas fa-info-circle"></i> Enable subdomain routing for web challenges.
+				Each container gets a unique subdomain (e.g., <code>abc123.challenges.example.com</code>).
+				Requires Traefik as reverse proxy.
+			</div>
+
+			<div class="form-group">
+				<div class="form-check">
+					<input class="form-check-input" type="checkbox" name="subdomain_enabled" id="subdomain_enabled"
+						value="true" {{ 'checked' if settings.subdomain_enabled=='true' else '' }}>
+					<label class="form-check-label" for="subdomain_enabled">
+						<strong>Enable Subdomain Routing</strong>
+					</label>
+				</div>
+				<small class="form-text text-muted">
+					When enabled, challenges with connection type "http", "https", or "web" will get a random subdomain
+					instead of port-based access.
+				</small>
+			</div>
+
+			<div id="subdomain-config-section" style="display: none;">
+				<hr>
+				<div class="form-group">
+					<label for="subdomain_base_domain">Base Domain</label>
+					<input class="form-control" type="text" name="subdomain_base_domain" id="subdomain_base_domain"
+						placeholder="challenges.example.com" value="{{ settings.subdomain_base_domain }}">
+					<small class="form-text text-muted">
+						Base domain for challenges. Subdomains will be:
+						<code>&lt;random&gt;.challenges.example.com</code>
+						<br>Make sure you have a wildcard DNS record: <code>*.challenges.example.com</code> pointing to
+						your server.
+					</small>
+				</div>
+
+				<div class="form-group">
+					<label for="subdomain_network">Docker Network Name</label>
+					<input class="form-control" type="text" name="subdomain_network" id="subdomain_network"
+						placeholder="ctfd-challenges" value="{{ settings.subdomain_network or 'ctfd-challenges' }}">
+					<small class="form-text text-muted">
+						Docker network where Traefik can reach challenge containers.
+					</small>
+				</div>
+
+				<div class="alert alert-warning">
+					<i class="fas fa-exclamation-triangle"></i> <strong>Requirements:</strong>
+					<ul class="mb-0 mt-2">
+						<li>Traefik running with Docker provider enabled</li>
+						<li>Wildcard DNS record pointing to your server</li>
+						<li>Challenge containers in the same Docker network as Traefik</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="form-group mt-3">
+		<button type="submit" class="btn btn-primary">
+			<i class="fas fa-check-circle"></i> Save Settings
+		</button>
+	</div>
+</form>
+
+<!-- WaSender WhatsApp Notifications Card (outside main form, standalone) -->
+<div class="card mt-3" id="wasender-card">
+	<div class="card-header">
+		<h5><i class="fab fa-whatsapp text-success"></i> WaSender WhatsApp Notifications</h5>
+	</div>
+	<div class="card-body">
+		<div class="alert alert-info">
+			<i class="fas fa-info-circle"></i>
+			Send cheat & error alerts to a WhatsApp group via <strong>WaSender API</strong>.
+			Media URLs expire after <strong>24 hours</strong> — re-upload before each CTF event.
+		</div>
+
+		<!-- API Key -->
+		<div class="form-group">
+			<label for="wasender_api_key">WaSender API Key</label>
+			<div class="input-group">
+				<input class="form-control" type="password" id="wasender_api_key" name="wasender_api_key"
+					value="{{ settings.wasender_api_key }}" placeholder="Your WaSender bearer token">
+				<div class="input-group-append">
+					<button class="btn btn-outline-secondary" type="button" onclick="toggleWaKeyVisibility()"
+						id="wa-key-toggle">
+						<i class="fas fa-eye" id="wa-key-eye"></i>
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Group ID -->
+		<div class="form-group">
+			<label for="wasender_group_id">WhatsApp Group ID</label>
+			<input class="form-control" type="text" id="wasender_group_id" name="wasender_group_id"
+				value="{{ settings.wasender_group_id }}" placeholder="120363xxxxxx@g.us">
+			<small class="form-text text-muted">The Group JID — find it with the WaSender dashboard.</small>
+		</div>
+
+		<!-- Alert Image Upload -->
+		<div class="form-group">
+			<label>Alert Image</label>
+			<div class="d-flex align-items-center flex-wrap gap-2">
+				<input class="form-control-file" type="file" id="wa_image_file"
+					accept="image/jpeg,image/png,image/gif,image/webp" style="max-width:300px;">
+				<button type="button" class="btn btn-sm btn-outline-primary ml-2" onclick="uploadWaMedia('image')">
+					<i class="fas fa-upload"></i> Upload
+				</button>
+				<span id="wa_image_status" class="badge badge-secondary ml-2">
+					{% if settings.wasender_image_url %}
+					✅ {{ settings.wasender_image_url.split('/')[-1][:30] }}
+					{% else %}
+					None
+					{% endif %}
+				</span>
+			</div>
+			<small class="form-text text-muted">JPEG/PNG/GIF/WebP ≤ 16 MB. Sent alongside text alerts.</small>
+		</div>
+
+		<!-- Alert Audio Upload -->
+		<div class="form-group">
+			<label>Alert Audio</label>
+			<div class="d-flex align-items-center flex-wrap gap-2">
+				<input class="form-control-file" type="file" id="wa_audio_file"
+					accept="audio/mpeg,audio/aac,audio/ogg,audio/amr,audio/wav" style="max-width:300px;">
+				<button type="button" class="btn btn-sm btn-outline-primary ml-2" onclick="uploadWaMedia('audio')">
+					<i class="fas fa-upload"></i> Upload
+				</button>
+				<span id="wa_audio_status" class="badge badge-secondary ml-2">
+					{% if settings.wasender_audio_url %}
+					✅ {{ settings.wasender_audio_url.split('/')[-1][:30] }}
+					{% else %}
+					None
+					{% endif %}
+				</span>
+			</div>
+			<small class="form-text text-muted">MP3/AAC/OGG/AMR/WAV ≤ 16 MB. Sent as a separate audio message.</small>
+		</div>
+
+		<!-- WaSender credentials save button -->
+		<div class="mb-3">
+			<button type="button" class="btn btn-primary btn-sm" onclick="saveWaSenderConfig()">
+				<i class="fas fa-save"></i> Save WaSender Settings
+			</button>
+		</div>
+
+		<!-- Test Buttons -->
+		<div class="mt-2">
+			<button type="button" class="btn btn-outline-success btn-sm" onclick="testWasender('wa_connection')">
+				<i class="fas fa-plug"></i> Test Connection
+			</button>
+			<button type="button" class="btn btn-outline-danger btn-sm ml-1" onclick="testWasender('wa_demo_cheat')">
+				<i class="fas fa-exclamation-triangle"></i> Demo Cheat
+			</button>
+			<button type="button" class="btn btn-outline-warning btn-sm ml-1" onclick="testWasender('wa_demo_error')">
+				<i class="fas fa-bug"></i> Demo Error
+			</button>
+		</div>
+		<div class="mt-2">
+			<button type="button" class="btn btn-outline-info btn-sm" onclick="testWasender('wa_test_image')">
+				<i class="fas fa-image"></i> Test Image
+			</button>
+			<button type="button" class="btn btn-outline-secondary btn-sm ml-1" onclick="testWasender('wa_test_audio')">
+				<i class="fas fa-music"></i> Test Audio
+			</button>
+		</div>
+	</div>
+</div>
+
+{% include "config/container_status.html" %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+	// Toggle SSH config section
+	function toggleDockerType() {
+		const sshRadio = document.getElementById('docker_type_ssh');
+		const sshSection = document.getElementById('ssh-config-section');
+
+		if (sshRadio.checked) {
+			sshSection.style.display = 'block';
+		} else {
+			sshSection.style.display = 'none';
+		}
+	}
+
+	// Toggle Subdomain config section
+	function toggleSubdomainConfig() {
+		const checkbox = document.getElementById('subdomain_enabled');
+		const section = document.getElementById('subdomain-config-section');
+
+		if (checkbox.checked) {
+			section.style.display = 'block';
+		} else {
+			section.style.display = 'none';
+		}
+	}
+
+	// Initialize
+	document.addEventListener('DOMContentLoaded', function () {
+		toggleDockerType();
+		toggleSubdomainConfig();
+		document.getElementById('docker_type_local').addEventListener('change', toggleDockerType);
+		document.getElementById('docker_type_ssh').addEventListener('change', toggleDockerType);
+		document.getElementById('subdomain_enabled').addEventListener('change', toggleSubdomainConfig);
+	});
+
+	document.getElementById('settings-form').addEventListener('submit', function (e) {
+		e.preventDefault();
+		const formData = new FormData(this);
+
+		// Fix: Checkboxes are not included if unchecked, so we manually add them
+		if (!document.getElementById('subdomain_enabled').checked) {
+			formData.append('subdomain_enabled', 'false');
+		}
+		if (!document.getElementById('container_first_blood_enabled').checked) {
+			formData.append('container_first_blood_enabled', 'false');
+		}
+		if (!document.getElementById('container_announce_all_solves').checked) {
+			formData.append('container_announce_all_solves', 'false');
+		}
+		if (!document.getElementById('container_autoban_enabled').checked) {
+			formData.append('container_autoban_enabled', 'false');
+		}
+		if (!document.getElementById('port_allocation_random').checked) {
+			formData.append('port_allocation_random', 'false');
+		}
+
+		const data = Object.fromEntries(formData);
+
+		fetch('{{ url_for("containers_admin.api_config_update") }}', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'CSRF-Token': '{{ Session.nonce }}'
+			},
+			body: JSON.stringify(data)
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) {
+					alert('Settings saved successfully');
+					location.reload();
+				} else {
+					alert('Error: ' + (data.error || 'Unknown error'));
+				}
+			})
+			.catch(e => alert('Network error: ' + e));
+	});
+
+	// Test First Blood (uses First Blood settings: enable + webhook + template)
+	function testFirstBlood() {
+		const btn = event.target.closest('button');
+		const originalText = btn.innerHTML;
+		btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+		btn.disabled = true;
+		fetch('{{ url_for("containers_admin.api_notification_test") }}', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'CSRF-Token': '{{ Session.nonce }}'
+			},
+			body: JSON.stringify({ type: 'demo_first_blood' })
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) {
+					alert('Test sent! Check Discord and WhatsApp.');
+				} else {
+					alert('Failed: ' + (data.error || 'Check that First Blood is enabled and a webhook is set.'));
+				}
+			})
+			.catch(e => alert('Network error: ' + e))
+			.finally(() => {
+				btn.innerHTML = originalText;
+				btn.disabled = false;
+			});
+	}
+
+	// Webhook testing (Discord)
+	function testWebhook(type) {
+		const url = document.getElementById('container_discord_webhook_url').value;
+		if (!url) {
+			alert('Please enter a Webhook URL first');
+			return;
+		}
+
+		const btn = event.target.closest('button');
+		const originalText = btn.innerHTML;
+		btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+		btn.disabled = true;
+
+		fetch('{{ url_for("containers_admin.api_notification_test") }}', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'CSRF-Token': '{{ Session.nonce }}'
+			},
+			body: JSON.stringify({
+				type: type,
+				url: url
+			})
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) {
+					alert('Test sent successfully! Check your Discord.');
+				} else {
+					alert('Failed: ' + (data.error || 'Unknown error'));
+				}
+			})
+			.catch(e => alert('Network error: ' + e))
+			.finally(() => {
+				btn.innerHTML = originalText;
+				btn.disabled = false;
+			});
+	}
+
+	// ── WaSender helpers ──────────────────────────────────────────────────────
+
+	function toggleWaKeyVisibility() {
+		const input = document.getElementById('wasender_api_key');
+		const eye = document.getElementById('wa-key-eye');
+		if (input.type === 'password') {
+			input.type = 'text';
+			eye.className = 'fas fa-eye-slash';
+		} else {
+			input.type = 'password';
+			eye.className = 'fas fa-eye';
+		}
+	}
+
+	function saveWaSenderConfig() {
+		const payload = {
+			wasender_api_key: document.getElementById('wasender_api_key').value,
+			wasender_group_id: document.getElementById('wasender_group_id').value,
+		};
+		fetch('{{ url_for("containers_admin.api_config_update") }}', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'CSRF-Token': '{{ Session.nonce }}'
+			},
+			body: JSON.stringify(payload)
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) alert('WaSender settings saved!');
+				else alert('Error: ' + (data.error || 'Unknown error'));
+			})
+			.catch(e => alert('Network error: ' + e));
+	}
+
+	function uploadWaMedia(mediaType) {
+		const fileInput = document.getElementById('wa_' + mediaType + '_file');
+		const statusBadge = document.getElementById('wa_' + mediaType + '_status');
+
+		if (!fileInput.files.length) {
+			alert('Please select a file first.');
+			return;
+		}
+
+		const apiKey = document.getElementById('wasender_api_key').value;
+		if (!apiKey) {
+			alert('Please enter your WaSender API Key first.');
+			return;
+		}
+
+		statusBadge.className = 'badge badge-warning ml-2';
+		statusBadge.textContent = '⏳ Uploading...';
+
+		const formData = new FormData();
+		formData.append('file', fileInput.files[0]);
+		formData.append('media_type', mediaType);
+		formData.append('nonce', '{{ Session.nonce }}');
+
+		fetch('{{ url_for("containers_admin.api_upload_media") }}', {
+			method: 'POST',
+			headers: { 'CSRF-Token': '{{ Session.nonce }}' },
+			body: formData
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) {
+					const filename = data.url.split('/').pop().substring(0, 30);
+					statusBadge.className = 'badge badge-success ml-2';
+					statusBadge.textContent = '✅ ' + filename;
+				} else {
+					statusBadge.className = 'badge badge-danger ml-2';
+					statusBadge.textContent = '❌ Failed';
+					alert('Upload failed: ' + (data.error || 'Unknown error'));
+				}
+			})
+			.catch(e => {
+				statusBadge.className = 'badge badge-danger ml-2';
+				statusBadge.textContent = '❌ Error';
+				alert('Network error: ' + e);
+			});
+	}
+
+	function testWasender(type) {
+		const apiKey = document.getElementById('wasender_api_key').value;
+		const groupId = document.getElementById('wasender_group_id').value;
+		if (!apiKey || !groupId) {
+			alert('Please enter your WaSender API Key and Group ID first.');
+			return;
+		}
+
+		const btn = event.target.closest('button');
+		const originalText = btn.innerHTML;
+		btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+		btn.disabled = true;
+
+		fetch('{{ url_for("containers_admin.api_notification_test") }}', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'CSRF-Token': '{{ Session.nonce }}'
+			},
+			body: JSON.stringify({ type: type, api_key: apiKey, group_id: groupId })
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) alert('Sent! Check your WhatsApp group.');
+				else alert('Failed: ' + (data.error || 'Unknown error'));
+			})
+			.catch(e => alert('Network error: ' + e))
+			.finally(() => {
+				btn.innerHTML = originalText;
+				btn.disabled = false;
+			});
+	}
+</script>
+{% endblock %}

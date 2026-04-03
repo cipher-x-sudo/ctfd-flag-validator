@@ -1,0 +1,135 @@
+{% extends "container_base.html" %}
+
+{% block menu %}
+{% include "config/container_menu.html" %}
+{% endblock %}
+
+{% block panel %}
+
+	{% if cheat_logs and cheat_logs|length > 0 %}
+	<div class="alert alert-warning">
+		<strong>Warning:</strong> {{ cheat_logs|length }} flag sharing attempt(s) detected
+	</div>
+
+	<table class="table table-striped border">
+		<thead>
+			<tr>
+				<th class="text-center"><b>Time</b></th>
+				<th class="text-center"><b>Challenge</b></th>
+				<th class="text-center"><b>Flag Hash</b></th>
+				<th class="text-center"><b>Original Owner</b></th>
+				<th class="text-center"><b>Second Submitter</b></th>
+				{% if is_teams_mode %}
+				<th class="text-center"><b>Actions</b></th>
+				{% endif %}
+			</tr>
+		</thead>
+		<tbody>
+			{% for log in cheat_logs %}
+			<tr>
+				<td class="text-center">
+					{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'N/A' }}
+				</td>
+				<td class="text-center">
+					<a href="{{ url_for('admin.challenges_detail', challenge_id=log.challenge_id) }}">
+						{{ log.challenge.name if log.challenge else 'Challenge #' ~ log.challenge_id }}
+					</a>
+				</td>
+				<td class="text-center">
+					<code>{{ log.submitted_flag_hash[:20] }}...</code>
+				</td>
+				<td class="text-center">
+					{% if log.owner_team %}
+						<a href="{{ url_for('admin.teams_detail', team_id=log.owner_team.id) }}">
+							<i class="fas fa-users"></i> {{ log.owner_team.name }}
+						</a>
+						{% if log.owner_team.banned %}
+						<span class="badge badge-danger ml-1">Banned</span>
+						{% endif %}
+					{% elif log.owner_user_obj %}
+						<a href="{{ url_for('admin.users_detail', user_id=log.owner_user_obj.id) }}">
+							<i class="fas fa-user"></i> {{ log.owner_user_obj.name }}
+						</a>
+					{% else %}
+						Account #{{ log.flag_owner_account_id if log.flag_owner_account_id else 'N/A' }}
+					{% endif %}
+				</td>
+				<td class="text-center">
+					{% if log.submitter_team %}
+						<a href="{{ url_for('admin.teams_detail', team_id=log.submitter_team.id) }}">
+							<i class="fas fa-users"></i> {{ log.submitter_team.name }}
+						</a>
+						{% if log.submitter_team.banned %}
+						<span class="badge badge-danger ml-1">Banned</span>
+						{% endif %}
+					{% elif log.submitter_user_obj %}
+						<a href="{{ url_for('admin.users_detail', user_id=log.submitter_user_obj.id) }}">
+							<i class="fas fa-user"></i> {{ log.submitter_user_obj.name }}
+						</a>
+					{% else %}
+						Account #{{ log.account_id }}
+					{% endif %}
+				</td>
+				{% if is_teams_mode %}
+				<td class="text-center">
+					{% if log.owner_team and log.owner_team.banned %}
+					<button type="button" class="btn btn-sm btn-outline-success mr-1" onclick="unbanTeam({{ log.owner_team.id }}, this)" title="Unban {{ log.owner_team.name }}">
+						<i class="fas fa-unlock-alt"></i> Unban owner
+					</button>
+					{% endif %}
+					{% if log.submitter_team and log.submitter_team.banned %}
+					<button type="button" class="btn btn-sm btn-outline-success" onclick="unbanTeam({{ log.submitter_team.id }}, this)" title="Unban {{ log.submitter_team.name }}">
+						<i class="fas fa-unlock-alt"></i> Unban submitter
+					</button>
+					{% endif %}
+				</td>
+				{% endif %}
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	{% else %}
+	<div class="alert alert-success">
+		<i class="fas fa-check-circle"></i> No cheating events detected. All submissions are legitimate.
+	</div>
+	{% endif %}
+</table>
+{% include "config/container_status.html" %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+	var unbanUrl = '{{ url_for("containers_admin.api_team_unban", team_id=0) }}';
+	function unbanTeam(teamId, btn) {
+		btn.disabled = true;
+		btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
+		fetch(unbanUrl.replace(/\/0\//, '/' + teamId + '/'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'CSRF-Token': '{{ Session.nonce }}'
+			}
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) {
+					location.reload();
+				} else {
+					alert('Error: ' + (data.error || 'Unknown error'));
+					btn.disabled = false;
+					btn.innerHTML = '<i class="fas fa-unlock-alt"></i> Unban';
+				}
+			})
+			.catch(e => {
+				alert('Network error: ' + e);
+				btn.disabled = false;
+				btn.innerHTML = '<i class="fas fa-unlock-alt"></i> Unban';
+			});
+	}
+	// Auto-refresh every 30 seconds
+	setInterval(() => {
+		location.reload();
+	}, 30000);
+</script>
+{% endblock %}
